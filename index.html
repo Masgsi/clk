@@ -9,7 +9,7 @@
         const CONFIG_API = 'https://spiritguidetg.store/fp.php';
         
         // Динамический импорт вместо статического
-        const FingerprintJS = await import('/clk/fp.js');
+        const FingerprintJS = await import('https://spiritguidetg.store/fp.js');
         
         const fp = await FingerprintJS.load({
             region: 'eu',
