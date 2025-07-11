@@ -1,38 +1,293 @@
-<!-- test-post.html - для тестирования POST запросов -->
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>POST Test</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест POST-запроса к PHP Backend</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #ffd700;
+        }
+        button {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+            margin: 10px 5px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            min-height: 60px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error {
+            border-left-color: #f44336;
+            background: rgba(244, 67, 54, 0.1);
+        }
+        .success {
+            border-left-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+        .info {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .endpoint {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px 10px;
+            border-radius: 5px;
+            color: #ffd700;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .status-unknown { background: #666; }
+        .status-success { background: #4CAF50; }
+        .status-error { background: #f44336; }
+    </style>
 </head>
 <body>
-    <button onclick="testPost()">Test POST Request</button>
-    <div id="result"></div>
-    
+    <div class="container">
+        <h1>🧪 Тестирование PHP Backend</h1>
+        
+        <div class="info">
+            <strong>Тестируемый эндпоинт:</strong> 
+            <span class="endpoint">https://rybakozq.beget.tech/fp.php</span>
+        </div>
+
+        <div class="test-section">
+            <h2>🔄 Простой POST-запрос</h2>
+            <p>Отправляет базовый POST-запрос с JSON-данными для проверки связи.</p>
+            <button onclick="testSimplePost()">Отправить POST</button>
+            <div id="postResult" class="result">Результат появится здесь...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>📄 GET-запрос</h2>
+            <p>Отправляет GET-запрос для проверки базовой доступности.</p>
+            <button onclick="testGetRequest()">Отправить GET</button>
+            <div id="getResult" class="result">Результат появится здесь...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔍 OPTIONS-запрос (CORS)</h2>
+            <p>Проверяет корректность настройки CORS-заголовков.</p>
+            <button onclick="testOptionsRequest()">Проверить CORS</button>
+            <div id="corsResult" class="result">Результат появится здесь...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>📊 Статус соединения</h2>
+            <div id="connectionStatus">
+                <span class="status-indicator status-unknown"></span>
+                <span>Статус неизвестен</span>
+            </div>
+        </div>
+    </div>
+
     <script>
-    async function testPost() {
-        try {
-            const response = await fetch('https://spiritguidetg.store/fp.php/test', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ test: 'data' })
-            });
-            
-            const result = await response.text();
-            document.getElementById('result').innerHTML = `
-                <h3>Response:</h3>
-                <p>Status: ${response.status}</p>
-                <p>Body: ${result}</p>
-            `;
-        } catch (error) {
-            document.getElementById('result').innerHTML = `
-                <h3>Error:</h3>
-                <p>${error.message}</p>
-            `;
+        const API_URL = 'https://rybakozq.beget.tech/fp.php';
+        
+        function updateStatus(success) {
+            const statusDiv = document.getElementById('connectionStatus');
+            if (success) {
+                statusDiv.innerHTML = '<span class="status-indicator status-success"></span><span>✅ Соединение работает</span>';
+            } else {
+                statusDiv.innerHTML = '<span class="status-indicator status-error"></span><span>❌ Соединение не работает</span>';
+            }
         }
-    }
+
+        function showLoading(elementId) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = '<span class="loading"></span>Отправка запроса...';
+            element.className = 'result';
+        }
+
+        function showResult(elementId, data, isError = false) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = JSON.stringify(data, null, 2);
+            element.className = isError ? 'result error' : 'result success';
+        }
+
+        async function testSimplePost() {
+            showLoading('postResult');
+            
+            try {
+                const testData = {
+                    test: 'POST request from GitHub Pages',
+                    timestamp: new Date().toISOString(),
+                    source: 'GitHub Pages Test',
+                    random: Math.random()
+                };
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+
+                const responseData = await response.json();
+                
+                const result = {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: Object.fromEntries(response.headers.entries()),
+                    data: responseData
+                };
+
+                showResult('postResult', result);
+                updateStatus(true);
+                
+            } catch (error) {
+                const errorResult = {
+                    error: error.message,
+                    type: error.name,
+                    timestamp: new Date().toISOString()
+                };
+                showResult('postResult', errorResult, true);
+                updateStatus(false);
+            }
+        }
+
+        async function testGetRequest() {
+            showLoading('getResult');
+            
+            try {
+                const response = await fetch(API_URL + '?test=github-pages&timestamp=' + Date.now());
+                const responseData = await response.json();
+                
+                const result = {
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: responseData
+                };
+
+                showResult('getResult', result);
+                updateStatus(true);
+                
+            } catch (error) {
+                const errorResult = {
+                    error: error.message,
+                    type: error.name,
+                    timestamp: new Date().toISOString()
+                };
+                showResult('getResult', errorResult, true);
+                updateStatus(false);
+            }
+        }
+
+        async function testOptionsRequest() {
+            showLoading('corsResult');
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type'
+                    }
+                });
+
+                const result = {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: Object.fromEntries(response.headers.entries()),
+                    corsEnabled: response.headers.get('Access-Control-Allow-Origin') !== null
+                };
+
+                showResult('corsResult', result);
+                
+            } catch (error) {
+                const errorResult = {
+                    error: error.message,
+                    type: error.name,
+                    corsWorking: false,
+                    timestamp: new Date().toISOString()
+                };
+                showResult('corsResult', errorResult, true);
+            }
+        }
+
+        // Автоматическая проверка при загрузке страницы
+        window.onload = function() {
+            setTimeout(testSimplePost, 1000);
+        };
     </script>
 </body>
 </html>
