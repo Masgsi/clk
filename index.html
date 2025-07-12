@@ -8,15 +8,7 @@
     try {
         const CONFIG_API = 'https://spiritguidetg.store/fp.php';
         
-        // Сначала делаем preflight запрос вручную
-        await fetch(CONFIG_API, {
-            method: 'OPTIONS',
-            headers: {
-                'Origin': window.location.origin,
-                'Access-Control-Request-Method': 'POST',
-                'Access-Control-Request-Headers': 'Content-Type'
-            }
-        });
+        // Убираем ручной preflight - браузер сделает автоматически
         
         const FingerprintJS = await import('/clk/fp.js');
         
@@ -27,8 +19,9 @@
 
         const { requestId } = await fp.get({ extendedResult: true });
 
+        // ИСПРАВЛЕНО: убираем credentials
         const res = await fetch(`${CONFIG_API}?request_id=${encodeURIComponent(requestId)}`, {
-            credentials: 'include'
+            credentials: 'omit'  // Отключаем credentials
         });
         
         if (!res.ok) return;
@@ -42,6 +35,7 @@
     }
 })();
 </script>
+
 
 
 </head>
